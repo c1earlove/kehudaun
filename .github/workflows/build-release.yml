@@ -1,0 +1,96 @@
+name: Build & Package for Windows + macOS
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  build-windows:
+    name: Build Windows Installer
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: yt_client_flutter  # 👈 关键！指定工作目录
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.5'
+          channel: 'stable'
+
+      - run: flutter pub get
+      - run: flutter build windows --release
+
+      - run: |
+          mkdir release
+          xcopy /E /I "build\windows\x64\runner\Release" "release\YourApp"
+
+      - run: |
+          choco install innosetup -y
+          echo [Setup] > installer.iss
+          echo AppName=YourApp >> installer.iss
+          echo AppVersion=1.0.0 >> installer.iss
+          echo DefaultDirName={autopf}\YourApp >> installer.iss
+          echo DefaultGroupName=YourApp >> installer.iss
+          echo OutputDir=. >> installer.iss
+          echo OutputBaseFilename=YourApp-Setup-1.0.0 >> installer.iss
+          echo Compression=lzma2 >> installer.iss
+          echo SolidCompression=yes >> installer.iss
+          echo [Files] >> installer.iss
+          echo Source: "release\YourApp\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs >> installer.iss
+          echo [Icons] >> installer.iss
+          echo Name: "{autoprograms}\YourApp"; Filename: "{app}\YourApp.exe" >> installer.iss
+
+      - run: ISCC installer.iss
+
+      - uses: softprops/action-gh-release@v2
+        if: github.event_name == 'release'
+        with:
+          files: yt_client_flutter/YourApp-Setup-*.exe  # 注意路径
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos:
+    name: Build macOS DMG
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: yt_client_flutter  # 👈 关键！
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.5'
+          channel: 'stable'
+
+      - run: flutter pub get
+      - run: flutter build macos --release
+
+      - run: |
+          cd build/macos/Build/Products/Release
+          mv Runner.app YourApp.app
+
+      - run: |
+          brew install create-dmg
+          create-dmg \
+            --volname "YourApp" \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 128 \
+            --icon "YourApp.app" 200 190 \
+            --hide-extension "YourApp.app" \
+            --app-drop-link 600 190 \
+            "YourApp-1.0.0.dmg" \
+            "build/macos/Build/Products/Release/YourApp.app"
+
+      - uses: softprops/action-gh-release@v2
+        if: github.event_name == 'release'
+        with:
+          files: yt_client_flutter/YourApp-*.dmg  # 注意路径
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

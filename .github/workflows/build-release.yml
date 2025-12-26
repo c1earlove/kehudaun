@@ -1,42 +1,50 @@
-name: Build & Package for Windows + macOS
+name: 🚀 Build & Package for Windows, macOS, Linux
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:  # 手动触发（用于测试）
   release:
-    types: [published]
+    types: [published]  # 自动触发（当创建 Release 时）
 
 jobs:
   build-windows:
-    name: Build Windows Installer
+    name: 🪟 Build Windows Installer
     runs-on: windows-latest
     defaults:
       run:
-        working-directory: yt_client_flutter  # 👈 关键！指定工作目录
+        working-directory: yt_client_flutter
 
     steps:
-      - uses: actions/checkout@v4
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+      - name: ⚙️ Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.38.5'
           channel: 'stable'
 
-      - run: flutter pub get
-      - run: flutter build windows --release
+      - name: 📦 Get dependencies
+        run: flutter pub get
 
-      - run: |
+      - name: 🔨 Build Windows app
+        run: flutter build windows --release
+
+      - name: 📁 Prepare app folder
+        run: |
           mkdir release
           xcopy /E /I "build\windows\x64\runner\Release" "release\YourApp"
 
-      - run: |
+      - name: 🛠️ Create installer with Inno Setup
+        run: |
           choco install innosetup -y
+          $version = if ("${{ github.event_name }}" -eq "release") { "${{ github.event.tag_name }}" } else { "dev" }
           echo [Setup] > installer.iss
           echo AppName=YourApp >> installer.iss
-          echo AppVersion=1.0.0 >> installer.iss
+          echo AppVersion=$version >> installer.iss
           echo DefaultDirName={autopf}\YourApp >> installer.iss
           echo DefaultGroupName=YourApp >> installer.iss
           echo OutputDir=. >> installer.iss
-          echo OutputBaseFilename=YourApp-Setup-1.0.0 >> installer.iss
+          echo OutputBaseFilename=YourApp-Setup-$version >> installer.iss
           echo Compression=lzma2 >> installer.iss
           echo SolidCompression=yes >> installer.iss
           echo [Files] >> installer.iss
@@ -44,39 +52,55 @@ jobs:
           echo [Icons] >> installer.iss
           echo Name: "{autoprograms}\YourApp"; Filename: "{app}\YourApp.exe" >> installer.iss
 
-      - run: ISCC installer.iss
+      - name: ▶️ Compile installer
+        run: ISCC installer.iss
 
-      - uses: softprops/action-gh-release@v2
-        if: github.event_name == 'release'
+      - name: 📤 Upload as Artifact (for testing)
+        uses: actions/upload-artifact@v4
         with:
-          files: yt_client_flutter/YourApp-Setup-*.exe  # 注意路径
+          name: windows-installer
+          path: yt_client_flutter/YourApp-Setup-*.exe
+
+      - name: 📤 Publish to Release (if triggered by release)
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: yt_client_flutter/YourApp-Setup-*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-macos:
-    name: Build macOS DMG
+    name: 🍏 Build macOS DMG
     runs-on: macos-latest
     defaults:
       run:
-        working-directory: yt_client_flutter  # 👈 关键！
+        working-directory: yt_client_flutter
 
     steps:
-      - uses: actions/checkout@v4
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+      - name: ⚙️ Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.38.5'
           channel: 'stable'
 
-      - run: flutter pub get
-      - run: flutter build macos --release
+      - name: 📦 Get dependencies
+        run: flutter pub get
 
-      - run: |
+      - name: 🔨 Build macOS app
+        run: flutter build macos --release
+
+      - name: 📦 Rename app
+        run: |
           cd build/macos/Build/Products/Release
           mv Runner.app YourApp.app
 
-      - run: |
+      - name: 🧊 Create DMG with create-dmg
+        run: |
           brew install create-dmg
+          version="${{ github.event_name == 'release' && github.event.release.tag_name || 'dev' }}"
           create-dmg \
             --volname "YourApp" \
             --window-pos 200 120 \
@@ -85,12 +109,84 @@ jobs:
             --icon "YourApp.app" 200 190 \
             --hide-extension "YourApp.app" \
             --app-drop-link 600 190 \
-            "YourApp-1.0.0.dmg" \
+            "YourApp-$version.dmg" \
             "build/macos/Build/Products/Release/YourApp.app"
 
-      - uses: softprops/action-gh-release@v2
-        if: github.event_name == 'release'
+      - name: 📤 Upload as Artifact (for testing)
+        uses: actions/upload-artifact@v4
         with:
-          files: yt_client_flutter/YourApp-*.dmg  # 注意路径
+          name: macos-dmg
+          path: yt_client_flutter/YourApp-*.dmg
+
+      - name: 📤 Publish to Release (if triggered by release)
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: yt_client_flutter/YourApp-*.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-linux:
+    name: 🐧 Build Linux AppImage
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: yt_client_flutter
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.5'
+          channel: 'stable'
+
+      - name: 📦 Get dependencies
+        run: flutter pub get
+
+      - name: 🔨 Build Linux app
+        run: flutter build linux --release
+
+      - name: 📦 Prepare AppDir
+        run: |
+          mkdir -p YourApp.AppDir/usr/bin
+          cp -r build/linux/x64/release/bundle/* YourApp.AppDir/
+          chmod +x YourApp.AppDir/AppRun
+
+          # 创建简单的 desktop 文件（可选）
+          mkdir -p YourApp.AppDir/usr/share/applications
+          cat > YourApp.AppDir/yourapp.desktop <<EOF
+          [Desktop Entry]
+          Name=YourApp
+          Exec=AppRun
+          Icon=yourapp
+          Type=Application
+          Categories=Utility;
+          EOF
+
+          # 复制图标（假设你有 assets/icon.png）
+          # mkdir -p YourApp.AppDir/usr/share/icons/hicolor/256x256/apps
+          # cp ../assets/icon.png YourApp.AppDir/usr/share/icons/hicolor/256x256/apps/yourapp.png
+
+      - name: 🧊 Download and Run appimagetool
+        run: |
+          version="${{ github.event_name == 'release' && github.event.release.tag_name || 'dev' }}"
+          wget https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage -O appimagetool
+          chmod +x appimagetool
+          ./appimagetool YourApp.AppDir "YourApp-$version-x86_64.AppImage"
+
+      - name: 📤 Upload as Artifact (for testing)
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage
+          path: yt_client_flutter/YourApp-*-x86_64.AppImage
+
+      - name: 📤 Publish to Release (if triggered by release)
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: yt_client_flutter/YourApp-*-x86_64.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,113 @@
+# .github/workflows/build-release.yml
+name: 🚀 Build & Package for Windows + macOS
+
+on:
+  # 手动触发（推荐用于正式发布）
+  workflow_dispatch:
+
+  # 当发布新版本时自动触发（在 GitHub Releases 页面创建新 Release）
+  release:
+    types: [published]
+
+jobs:
+  build-windows:
+    name: 🪟 Build Windows Installer
+    runs-on: windows-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.5'  # 替换为你项目使用的 Flutter 版本
+          channel: 'stable'
+
+      - name: 📦 Get dependencies
+        run: flutter pub get
+
+      - name: 🔨 Build Windows app
+        run: flutter build windows --release
+
+      - name: 📁 Prepare app folder
+        run: |
+          mkdir release
+          xcopy /E /I "build\windows\x64\runner\Release" "release\YourApp"
+
+      - name: 🛠️ Create installer with Inno Setup
+        run: |
+          choco install innosetup -y
+          # 创建简单的 iss 脚本（你也可以提交自己的 iss 文件）
+          echo [Setup] > installer.iss
+          echo AppName=YourApp >> installer.iss
+          echo AppVersion=${{ github.ref_name || '1.0.0' }} >> installer.iss
+          echo DefaultDirName={autopf}\YourApp >> installer.iss
+          echo DefaultGroupName=YourApp >> installer.iss
+          echo OutputDir=. >> installer.iss
+          echo OutputBaseFilename=YourApp-Setup-${{ github.ref_name || '1.0.0' }} >> installer.iss
+          echo Compression=lzma2 >> installer.iss
+          echo SolidCompression=yes >> installer.iss
+          echo [Files] >> installer.iss
+          echo Source: "release\YourApp\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs >> installer.iss
+          echo [Icons] >> installer.iss
+          echo Name: "{autoprograms}\YourApp"; Filename: "{app}\YourApp.exe" >> installer.iss
+          echo Name: "{autodesktop}\YourApp"; Filename: "{app}\YourApp.exe"; Tasks: desktopicon >> installer.iss
+
+      - name: ▶️ Compile installer
+        run: ISCC installer.iss
+
+      - name: 📤 Upload Windows installer to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: YourApp-Setup-*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos:
+    name: 🍏 Build macOS DMG
+    runs-on: macos-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.5'  # 与 Windows 一致
+          channel: 'stable'
+
+      - name: 📦 Get dependencies
+        run: flutter pub get
+
+      - name: 🔨 Build macOS app
+        run: flutter build macos --release
+
+      - name: 📦 Rename app (optional)
+        run: |
+          cd build/macos/Build/Products/Release
+          mv Runner.app YourApp.app
+
+      - name: 🧊 Create DMG with create-dmg
+        run: |
+          brew install create-dmg
+          create-dmg \
+            --volname "YourApp" \
+            --window-pos 200 120 \
+            --window-size 1440 800 \
+            --icon-size 128 \
+            --icon "YourApp.app" 200 190 \
+            --hide-extension "YourApp.app" \
+            --app-drop-link 600 190 \
+            "YourApp-${{ github.ref_name || '1.0.0' }}.dmg" \
+            "build/macos/Build/Products/Release/YourApp.app"
+
+      - name: 📤 Upload macOS DMG to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: YourApp-*.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

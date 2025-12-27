@@ -32,25 +32,25 @@ jobs:
       - name: 📁 Prepare app folder
         run: |
           mkdir release
-          xcopy /E /I "build\windows\x64\runner\Release" "release\YourApp"
+          xcopy /E /I "build\windows\x64\runner\Release" "release\yt_client_flutter"
 
       - name: 🛠️ Create installer with Inno Setup
         run: |
           choco install innosetup -y
           $version = if ("${{ github.event_name }}" -eq "release") { "${{ github.event.tag_name }}" } else { "dev" }
           echo [Setup] > installer.iss
-          echo AppName=YourApp >> installer.iss
+          echo AppName=yt_client_flutter >> installer.iss
           echo AppVersion=$version >> installer.iss
-          echo DefaultDirName={autopf}\YourApp >> installer.iss
-          echo DefaultGroupName=YourApp >> installer.iss
+          echo DefaultDirName={autopf}\yt_client_flutter >> installer.iss
+          echo DefaultGroupName=yt_client_flutter >> installer.iss
           echo OutputDir=. >> installer.iss
-          echo OutputBaseFilename=YourApp-Setup-$version >> installer.iss
+          echo OutputBaseFilename=yt_client_flutter-Setup-$version >> installer.iss
           echo Compression=lzma2 >> installer.iss
           echo SolidCompression=yes >> installer.iss
           echo [Files] >> installer.iss
-          echo Source: "release\YourApp\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs >> installer.iss
+          echo Source: "release\yt_client_flutter\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs >> installer.iss
           echo [Icons] >> installer.iss
-          echo Name: "{autoprograms}\YourApp"; Filename: "{app}\YourApp.exe" >> installer.iss
+          echo Name: "{autoprograms}\yt_client_flutter"; Filename: "{app}\yt_client_flutter.exe" >> installer.iss
 
       - name: ▶️ Compile installer
         run: ISCC installer.iss
@@ -59,13 +59,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: yt_client_flutter/YourApp-Setup-*.exe
+          path: yt_client_flutter/yt_client_flutter-Setup-*.exe
 
       - name: 📤 Publish to Release (if triggered by release)
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: yt_client_flutter/YourApp-Setup-*.exe
+          files: yt_client_flutter/yt_client_flutter-Setup-*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -95,34 +95,34 @@ jobs:
       - name: 📦 Rename app
         run: |
           cd build/macos/Build/Products/Release
-          mv Runner.app YourApp.app
+          mv Runner.app yt_client_flutter.app
 
       - name: 🧊 Create DMG with create-dmg
         run: |
           brew install create-dmg
           version="${{ github.event_name == 'release' && github.event.release.tag_name || 'dev' }}"
           create-dmg \
-            --volname "YourApp" \
+            --volname "yt_client_flutter" \
             --window-pos 200 120 \
             --window-size 800 400 \
             --icon-size 128 \
-            --icon "YourApp.app" 200 190 \
-            --hide-extension "YourApp.app" \
+            --icon "yt_client_flutter.app" 200 190 \
+            --hide-extension "yt_client_flutter.app" \
             --app-drop-link 600 190 \
-            "YourApp-$version.dmg" \
-            "build/macos/Build/Products/Release/YourApp.app"
+            "yt_client_flutter-$version.dmg" \
+            "build/macos/Build/Products/Release/yt_client_flutter.app"
 
       - name: 📤 Upload as Artifact (for testing)
         uses: actions/upload-artifact@v4
         with:
           name: macos-dmg
-          path: yt_client_flutter/YourApp-*.dmg
+          path: yt_client_flutter/yt_client_flutter-*.dmg
 
       - name: 📤 Publish to Release (if triggered by release)
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: yt_client_flutter/YourApp-*.dmg
+          files: yt_client_flutter/yt_client_flutter-*.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -151,42 +151,42 @@ jobs:
 
       - name: 📦 Prepare AppDir
         run: |
-          mkdir -p YourApp.AppDir/usr/bin
-          cp -r build/linux/x64/release/bundle/* YourApp.AppDir/
-          chmod +x YourApp.AppDir/AppRun
+          mkdir -p yt_client_flutter.AppDir/usr/bin
+          cp -r build/linux/x64/release/bundle/* yt_client_flutter.AppDir/
+          chmod +x yt_client_flutter.AppDir/AppRun
 
           # 创建简单的 desktop 文件（可选）
-          mkdir -p YourApp.AppDir/usr/share/applications
-          cat > YourApp.AppDir/yourapp.desktop <<EOF
+          mkdir -p yt_client_flutter.AppDir/usr/share/applications
+          cat > yt_client_flutter.AppDir/yt_client_flutter.desktop <<EOF
           [Desktop Entry]
-          Name=YourApp
+          Name=yt_client_flutter
           Exec=AppRun
-          Icon=yourapp
+          Icon=yt_client_flutter
           Type=Application
           Categories=Utility;
           EOF
 
           # 复制图标（假设你有 assets/icon.png）
-          # mkdir -p YourApp.AppDir/usr/share/icons/hicolor/256x256/apps
-          # cp ../assets/icon.png YourApp.AppDir/usr/share/icons/hicolor/256x256/apps/yourapp.png
+          # mkdir -p yt_client_flutter.AppDir/usr/share/icons/hicolor/256x256/apps
+          # cp ../assets/icon.png yt_client_flutter.AppDir/usr/share/icons/hicolor/256x256/apps/yt_client_flutter.png
 
       - name: 🧊 Download and Run appimagetool
         run: |
           version="${{ github.event_name == 'release' && github.event.release.tag_name || 'dev' }}"
           wget https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage -O appimagetool
           chmod +x appimagetool
-          ./appimagetool YourApp.AppDir "YourApp-$version-x86_64.AppImage"
+          ./appimagetool yt_client_flutter.AppDir "yt_client_flutter-$version-x86_64.AppImage"
 
       - name: 📤 Upload as Artifact (for testing)
         uses: actions/upload-artifact@v4
         with:
           name: linux-appimage
-          path: yt_client_flutter/YourApp-*-x86_64.AppImage
+          path: yt_client_flutter/yt_client_flutter-*-x86_64.AppImage
 
       - name: 📤 Publish to Release (if triggered by release)
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: yt_client_flutter/YourApp-*-x86_64.AppImage
+          files: yt_client_flutter/yt_client_flutter-*-x86_64.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -37,7 +37,7 @@ jobs:
       - name: 🛠️ Create installer with Inno Setup
         run: |
           choco install innosetup -y
-          $version = if ("${{ github.event_name }}" -eq "release") { "${{ github.event.tag_name }}" } else { "dev" }
+          $version = if ("${{ github.event_name }}" -eq "release") { "${{ github.event.release.tag_name }}" } else { "dev" }
           echo [Setup] > installer.iss
           echo AppName=yt_client_flutter >> installer.iss
           echo AppVersion=$version >> installer.iss
@@ -92,10 +92,13 @@ jobs:
       - name: 🔨 Build macOS app
         run: flutter build macos --release
 
-      - name: 📦 Rename app
+      - name: 📂 Verify build output
         run: |
-          cd build/macos/Build/Products/Release
-          mv Runner.app yt_client_flutter.app
+          ls -la build/macos/Build/Products/Release/
+          if [ ! -d "build/macos/Build/Products/Release/yt_client_flutter.app" ]; then
+            echo "❌ yt_client_flutter.app not found!"
+            exit 1
+          fi
 
       - name: 🧊 Create DMG with create-dmg
         run: |
@@ -151,12 +154,11 @@ jobs:
 
       - name: 📦 Prepare AppDir
         run: |
-          mkdir -p yt_client_flutter.AppDir/usr/bin
+          mkdir -p yt_client_flutter.AppDir
           cp -r build/linux/x64/release/bundle/* yt_client_flutter.AppDir/
           chmod +x yt_client_flutter.AppDir/AppRun
 
-          # 创建简单的 desktop 文件（可选）
-          mkdir -p yt_client_flutter.AppDir/usr/share/applications
+          # 创建 desktop 文件
           cat > yt_client_flutter.AppDir/yt_client_flutter.desktop <<EOF
           [Desktop Entry]
           Name=yt_client_flutter
@@ -164,11 +166,8 @@ jobs:
           Icon=yt_client_flutter
           Type=Application
           Categories=Utility;
+          Terminal=false
           EOF
-
-          # 复制图标（假设你有 assets/icon.png）
-          # mkdir -p yt_client_flutter.AppDir/usr/share/icons/hicolor/256x256/apps
-          # cp ../assets/icon.png yt_client_flutter.AppDir/usr/share/icons/hicolor/256x256/apps/yt_client_flutter.png
 
       - name: 🧊 Download and Run appimagetool
         run: |

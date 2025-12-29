@@ -37,20 +37,22 @@ jobs:
       - name: 🛠️ Create installer with Inno Setup
         run: |
           choco install innosetup -y
-          $version = if ("${{ github.event_name }}" -eq "release") { "${{ github.event.release.tag_name }}" } else { "dev" }
-          echo [Setup] > installer.iss
-          echo AppName=yt_client_flutter >> installer.iss
-          echo AppVersion=$version >> installer.iss
-          echo DefaultDirName={autopf}\yt_client_flutter >> installer.iss
-          echo DefaultGroupName=yt_client_flutter >> installer.iss
-          echo OutputDir=. >> installer.iss
-          echo OutputBaseFilename=yt_client_flutter-Setup-$version >> installer.iss
-          echo Compression=lzma2 >> installer.iss
-          echo SolidCompression=yes >> installer.iss
-          echo [Files] >> installer.iss
-          echo Source: "release\yt_client_flutter\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs >> installer.iss
-          echo [Icons] >> installer.iss
-          echo Name: "{autoprograms}\yt_client_flutter"; Filename: "{app}\yt_client_flutter.exe" >> installer.iss
+          $version = if ("${{ github.event_name }}" -eq "release") { "${{ github.event.release.tag_name }}".TrimStart('v') } else { "dev" }
+          Add-Content -Path installer.iss -Value "[Setup]"
+          Add-Content -Path installer.iss -Value "AppName=yt_client_flutter"
+          Add-Content -Path installer.iss -Value "AppVersion=$version"
+          Add-Content -Path installer.iss -Value "DefaultDirName={autopf}\yt_client_flutter"
+          Add-Content -Path installer.iss -Value "DefaultGroupName=yt_client_flutter"
+          Add-Content -Path installer.iss -Value "OutputDir=."
+          Add-Content -Path installer.iss -Value "OutputBaseFilename=yt_client_flutter-Setup-$version"
+          Add-Content -Path installer.iss -Value "Compression=lzma2"
+          Add-Content -Path installer.iss -Value "SolidCompression=yes"
+          Add-Content -Path installer.iss -Value ""
+          Add-Content -Path installer.iss -Value "[Files]"
+          Add-Content -Path installer.iss -Value 'Source: "release\yt_client_flutter\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs'
+          Add-Content -Path installer.iss -Value ""
+          Add-Content -Path installer.iss -Value "[Icons]"
+          Add-Content -Path installer.iss -Value 'Name: "{autoprograms}\yt_client_flutter"; Filename: "{app}\yt_client_flutter.exe"'
 
       - name: ▶️ Compile installer
         run: ISCC installer.iss
@@ -158,21 +160,18 @@ jobs:
           cp -r build/linux/x64/release/bundle/* yt_client_flutter.AppDir/
           chmod +x yt_client_flutter.AppDir/AppRun
 
-          # 创建 desktop 文件
-          cat > yt_client_flutter.AppDir/yt_client_flutter.desktop <<EOF
-          [Desktop Entry]
-          Name=yt_client_flutter
-          Exec=AppRun
-          Icon=yt_client_flutter
-          Type=Application
-          Categories=Utility;
-          Terminal=false
-          EOF
+          echo "[Desktop Entry]" > yt_client_flutter.AppDir/yt_client_flutter.desktop
+          echo "Name=yt_client_flutter" >> yt_client_flutter.AppDir/yt_client_flutter.desktop
+          echo "Exec=AppRun" >> yt_client_flutter.AppDir/yt_client_flutter.desktop
+          echo "Icon=yt_client_flutter" >> yt_client_flutter.AppDir/yt_client_flutter.desktop
+          echo "Type=Application" >> yt_client_flutter.AppDir/yt_client_flutter.desktop
+          echo "Categories=Utility;" >> yt_client_flutter.AppDir/yt_client_flutter.desktop
+          echo "Terminal=false" >> yt_client_flutter.AppDir/yt_client_flutter.desktop
 
       - name: 🧊 Download and Run appimagetool
         run: |
           version="${{ github.event_name == 'release' && github.event.release.tag_name || 'dev' }}"
-          wget https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage -O appimagetool
+          wget -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage
           chmod +x appimagetool
           ./appimagetool yt_client_flutter.AppDir "yt_client_flutter-$version-x86_64.AppImage"
 

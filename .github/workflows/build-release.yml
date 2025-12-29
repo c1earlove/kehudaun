@@ -3,7 +3,7 @@ name: 🚀 Build & Package for Windows, macOS, Linux
 on:
   workflow_dispatch:  # 手动触发（用于测试）
   release:
-    types: [published]  # 自动触发（当创建 Release 时）
+    types: [published]  # 自动触发（当发布 Release 时）
 
 jobs:
   build-windows:
@@ -172,15 +172,21 @@ jobs:
         run: |
           mkdir -p yt_client_flutter.AppDir
           cp -r build/linux/x64/release/bundle/* yt_client_flutter.AppDir/
+          mv yt_client_flutter.AppDir/yt_client_flutter yt_client_flutter.AppDir/AppRun
           chmod +x yt_client_flutter.AppDir/AppRun
 
-          echo "[Desktop Entry]" > yt_client_flutter.AppDir/yt_client_flutter.desktop
-          echo "Name=yt_client_flutter" >> yt_client_flutter.AppDir/yt_client_flutter.desktop
-          echo "Exec=AppRun" >> yt_client_flutter.AppDir/yt_client_flutter.desktop
-          echo "Icon=yt_client_flutter" >> yt_client_flutter.AppDir/yt_client_flutter.desktop
-          echo "Type=Application" >> yt_client_flutter.AppDir/yt_client_flutter.desktop
-          echo "Categories=Utility;" >> yt_client_flutter.AppDir/yt_client_flutter.desktop
-          echo "Terminal=false" >> yt_client_flutter.AppDir/yt_client_flutter.desktop
+          printf '%s\n' \
+            "[Desktop Entry]" \
+            "Name=yt_client_flutter" \
+            "Exec=AppRun" \
+            "Icon=yt_client_flutter" \
+            "Type=Application" \
+            "Categories=Utility;" \
+            "Terminal=false" \
+            > yt_client_flutter.AppDir/yt_client_flutter.desktop
+
+      - name: 🖼️ Add placeholder icon (optional but required by AppImage spec)
+        run: touch yt_client_flutter.AppDir/yt_client_flutter.png
 
       - name: 🧊 Download and Run appimagetool
         run: |

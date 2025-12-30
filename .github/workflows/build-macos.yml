@@ -1,0 +1,67 @@
+name: 🍏 Build macOS DMG
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  build-macos:
+    name: 🍏 Build macOS DMG
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: yt_client_flutter
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.5'
+          channel: 'stable'
+
+      - name: 📦 Get dependencies
+        run: flutter pub get
+
+      - name: 🔨 Build macOS app
+        run: flutter build macos --release
+
+      - name: 📂 Verify build output
+        run: |
+          ls -la build/macos/Build/Products/Release/
+          if [ ! -d "build/macos/Build/Products/Release/yt_client_flutter.app" ]; then
+            echo "❌ yt_client_flutter.app not found!"
+            exit 1
+          fi
+
+      - name: 🧊 Create DMG with create-dmg
+        run: |
+          brew install create-dmg
+          version="${{ github.event_name == 'release' && github.event.release.tag_name || 'dev' }}"
+          create-dmg \
+            --volname "yt_client_flutter" \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 128 \
+            --icon "yt_client_flutter.app" 200 190 \
+            --hide-extension "yt_client_flutter.app" \
+            --app-drop-link 600 190 \
+            "yt_client_flutter-$version.dmg" \
+            "build/macos/Build/Products/Release/yt_client_flutter.app"
+
+      - name: 📤 Upload as Artifact (for testing)
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: yt_client_flutter/yt_client_flutter-*.dmg
+
+      - name: 📤 Publish to Release (if triggered by release)
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: yt_client_flutter/yt_client_flutter-*.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

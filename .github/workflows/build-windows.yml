@@ -1,0 +1,72 @@
+name: 🪟 Build Windows Installer
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  build-windows:
+    name: 🪟 Build Windows Installer
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: yt_client_flutter
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.5'
+          channel: 'stable'
+
+      - name: 📦 Get dependencies
+        run: flutter pub get
+
+      - name: 🔨 Build Windows app
+        run: flutter build windows --release
+
+      - name: 📁 Prepare app folder
+        run: |
+          mkdir release
+          xcopy /E /I "build\windows\x64\runner\Release" "release\yt_client_flutter"
+
+      - name: 🛠️ Create installer with Inno Setup
+        run: |
+          choco install innosetup -y
+          $version = if ("${{ github.event_name }}" -eq "release") { "${{ github.event.release.tag_name }}".TrimStart('v') } else { "dev" }
+          Add-Content -Path installer.iss -Value "[Setup]"
+          Add-Content -Path installer.iss -Value "AppName=yt_client_flutter"
+          Add-Content -Path installer.iss -Value "AppVersion=$version"
+          Add-Content -Path installer.iss -Value "DefaultDirName={autopf}\yt_client_flutter"
+          Add-Content -Path installer.iss -Value "DefaultGroupName=yt_client_flutter"
+          Add-Content -Path installer.iss -Value "OutputDir=."
+          Add-Content -Path installer.iss -Value "OutputBaseFilename=yt_client_flutter-Setup-$version"
+          Add-Content -Path installer.iss -Value "Compression=lzma2"
+          Add-Content -Path installer.iss -Value "SolidCompression=yes"
+          Add-Content -Path installer.iss -Value ""
+          Add-Content -Path installer.iss -Value "[Files]"
+          Add-Content -Path installer.iss -Value 'Source: "release\yt_client_flutter\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs'
+          Add-Content -Path installer.iss -Value ""
+          Add-Content -Path installer.iss -Value "[Icons]"
+          Add-Content -Path installer.iss -Value 'Name: "{autoprograms}\yt_client_flutter"; Filename: "{app}\yt_client_flutter.exe"'
+
+      - name: ▶️ Compile installer
+        run: ISCC installer.iss
+
+      - name: 📤 Upload as Artifact (for testing)
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: yt_client_flutter/yt_client_flutter-Setup-*.exe
+
+      - name: 📤 Publish to Release (if triggered by release)
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: yt_client_flutter/yt_client_flutter-Setup-*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

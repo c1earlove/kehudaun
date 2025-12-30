@@ -1,0 +1,85 @@
+name: 🐧 Build Linux AppImage
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  build-linux:
+    name: 🐧 Build Linux AppImage
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: yt_client_flutter
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.5'
+          channel: 'stable'
+
+      - name: 📦 Install Linux desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libx11-dev \
+            libgl1-mesa-dev \
+            libegl1-mesa-dev \
+            libdrm-dev \
+            libgbm-dev \
+            libudev-dev \
+            libblkid-dev \
+            libasound2-dev
+
+      - name: 📦 Get dependencies
+        run: flutter pub get
+
+      - name: 🔨 Build Linux app
+        run: flutter build linux --release
+
+      - name: 📦 Prepare AppDir
+        run: |
+          mkdir -p yt_client_flutter.AppDir
+          cp -r build/linux/x64/release/bundle/* yt_client_flutter.AppDir/
+          mv yt_client_flutter.AppDir/yt_client_flutter yt_client_flutter.AppDir/AppRun
+          chmod +x yt_client_flutter.AppDir/AppRun
+
+          printf '%s\n' \
+            "[Desktop Entry]" \
+            "Name=yt_client_flutter" \
+            "Exec=AppRun" \
+            "Icon=yt_client_flutter" \
+            "Type=Application" \
+            "Categories=Utility;" \
+            "Terminal=false" \
+            > yt_client_flutter.AppDir/yt_client_flutter.desktop
+
+      - name: 🖼️ Add placeholder icon (required by AppImage spec)
+        run: touch yt_client_flutter.AppDir/yt_client_flutter.png
+
+      - name: 🧊 Download and Run appimagetool
+        run: |
+          version="${{ github.event_name == 'release' && github.event.release.tag_name || 'dev' }}"
+          wget -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          ./appimagetool yt_client_flutter.AppDir "yt_client_flutter-$version-x86_64.AppImage"
+
+      - name: 📤 Upload as Artifact (for testing)
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage
+          path: yt_client_flutter/yt_client_flutter-*-x86_64.AppImage
+
+      - name: 📤 Publish to Release (if triggered by release)
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: yt_client_flutter/yt_client_flutter-*-x86_64.AppImage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
